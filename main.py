@@ -54,7 +54,7 @@ async def on_ready():
     # --- THIẾT LẬP TRẠNG THÁI "ĐANG XEM" ---
     activity = discord.Activity(
         name="Dev Quang Hiếu Đẹp Zai", 
-        type=discord.ActivityType.playing # Thay Watching bằng Streaming, Playing, Listening tùy ý
+        type=discord.ActivityType.watching # Thay Watching bằng Streaming, Playing, Listening tùy ý
     )
     await bot.change_presence(activity=activity)
     
