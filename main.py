@@ -51,8 +51,15 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_ready():
-    # --- ĐỒNG BỘ LỆNH SLASH COMMANDS ---
-    await bot.tree.sync()
+    # --- THIẾT LẬP TRẠNG THÁI "ĐANG XEM" ---
+    activity = discord.Activity(
+        name="Roblox", 
+        type=discord.ActivityType.playing # Thay Watching bằng Streaming, Playing, Listening tùy ý
+    )
+    await bot.change_presence(activity=activity)
+    
+    # --- ĐỒNG BỘ LỆNH VÀ IN LOG (Giữ nguyên) ---
+    await bot.tree.sync() 
     print('----------------------------------')
     print(f'🤖 Bot đã đăng nhập: {bot.user}')
     print(f'🛡️ Admin ID: {ID_ADMIN}')
