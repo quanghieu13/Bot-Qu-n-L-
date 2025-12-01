@@ -76,7 +76,7 @@ async def on_ready():
 # --- LỆNH SLASH COMMAND /ping ---
 @bot.tree.command(name="ping", description="Kiểm tra độ trễ (latency) của Bot.")
 async def ping_slash(interaction: discord.Interaction):
-    await interaction.response.send_message(f'Độ trễ: {round(bot.latency * 1000)}ms', ephemeral=True)
+    await interaction.response.send_message(f'Độ trễ: {round(bot.latency * 1000)}ms')
 
 
 @bot.event
