@@ -10,11 +10,8 @@ import datetime # Cần cho chức năng Timeout (Mute)
 # PHẦN 1: TẢI CẤU HÌNH VÀ DỮ LIỆU
 # ======================================================
 
-# BẮT BUỘC: Thay thế bằng ID Discord của bạn (Admin)
 ID_ADMIN = 1065648216911122506
 
-
-# Hàm 1: Đọc danh sách từ cấm
 def load_tu_cam(filename="tucam.txt"):
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -23,7 +20,6 @@ def load_tu_cam(filename="tucam.txt"):
         print(f"⚠️ Lỗi: Không tìm thấy file {filename}.")
         return []
 
-# Hàm 2: Đọc danh sách người dùng được phép (Whitelist)
 def load_allowed_users(filename="id-user.txt"):
     allowed_ids = []
     try:
@@ -37,17 +33,18 @@ def load_allowed_users(filename="id-user.txt"):
         print(f"⚠️ Lỗi: Không tìm thấy file {filename}. Không ai được miễn trừ.")
         return []
 
-# Tải dữ liệu khi khởi động
 TU_CAM = load_tu_cam()
 ALLOWED_USER_IDS = load_allowed_users()
 
 # Thiết lập Intents
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True # Cần cho chức năng Timeout
+intents.members = True
 intents.presences = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
+# --- THÊM CÂY LỆNH SLASH COMMANDS ---
+tree = discord.app_commands.CommandTree(bot)
 
 # ======================================================
 # PHẦN 2: SỰ KIỆN BOT VÀ CHỨC NĂNG KIỂM DUYỆT
@@ -55,30 +52,33 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_ready():
+    # --- ĐỒNG BỘ LỆNH SLASH COMMANDS ---
+    await tree.sync() 
     print('----------------------------------')
     print(f'🤖 Bot đã đăng nhập: {bot.user}')
     print(f'🛡️ Admin ID: {ID_ADMIN}')
     print(f'🚫 Số lượng từ cấm: {len(TU_CAM)}')
-    print(f'✅ Số người dùng được miễn trừ: {len(ALLOWED_USER_IDS)}')
+    print(f'✅ Whitelist: {len(ALLOWED_USER_IDS)}')
     print('----------------------------------')
 
-@bot.command()
-async def ping(ctx):
-    await ctx.send(f'Pong! Độ trễ: {round(bot.latency * 1000)}ms')
+# --- LỆNH SLASH COMMAND MỚI ---
+@tree.command(name="ping", description="Kiểm tra độ trễ (latency) của Bot.")
+async def ping_slash(interaction: discord.Interaction):
+    # Lệnh slash command dùng interaction.response.send_message
+    await interaction.response.send_message(f'Pong! Độ trễ: {round(bot.latency * 1000)}ms', ephemeral=True)
+
 
 @bot.event
 async def on_message(message):
-    # Luôn bỏ qua tin nhắn của chính bot này
     if message.author == bot.user:
         return
 
-    # --- ĐỊNH NGHĨA NGOẠI LỆ (Exemptions) ---
+    # --- ĐỊNH NGHĨA NGOẠI LỆ ---
     is_exempt = (message.author.bot) or \
                 (message.author.id == ID_ADMIN) or \
                 (message.author.id in ALLOWED_USER_IDS)
 
-    # --- CHỨC NĂNG 1: TỪ CẤM & MUTE 5 PHÚT ---
-    # Chỉ kiểm tra nếu KHÔNG được miễn trừ
+    # --- KIỂM TRA TỪ CẤM ---
     if not is_exempt:
         noi_dung = message.content.lower()
         vi_pham = False
@@ -90,39 +90,32 @@ async def on_message(message):
         
         if vi_pham:
             try:
-                # 1. Tự động xóa tin nhắn
                 await message.delete()
-
-                # 2. Áp dụng Timeout (Mute) 5 phút
                 duration = datetime.timedelta(minutes=5)
                 await message.author.timeout(duration) 
                 
-                # 3. Gửi cảnh báo công khai
-                warn_msg = await message.channel.send(
-                    f"🚫 {message.author.mention}, tin nhắn đã bị xóa và **tạm thời bị cấm chat 5 phút** vì vi phạm từ cấm!")
+                msg = await message.channel.send(
+                    f"🚫 {message.author.mention}, bị cấm chat 5 phút vì vi phạm từ cấm!")
                 
-                # 4. Tự xóa cảnh báo sau 5s
                 await asyncio.sleep(5)
-                await warn_msg.delete()
-
-                # 5. Báo cáo cho Admin
+                await msg.delete()
+                
                 admin = await bot.fetch_user(ID_ADMIN)
-                await admin.send(f"⚠️ **ĐÃ MUTE 5P**: {message.author} đã vi phạm từ cấm. Nội dung: `{message.content}`")
+                await admin.send(f"⚠️ ĐÃ MUTE 5P: {message.author} đã vi phạm.")
                 
             except discord.errors.Forbidden:
-                await message.channel.send(f"❌ Bot thiếu quyền **Kiểm duyệt thành viên** để MUTE {message.author.mention}!")
+                await message.channel.send(f"❌ Bot thiếu quyền MUTE {message.author.mention}!")
                 
             except Exception as e:
-                # Xử lý lỗi Rate Limit và lỗi chung
                 if isinstance(e, discord.errors.HTTPException) and e.status == 429:
                     print("⚠️ Bị Rate Limit. Đang nghỉ 3 giây...")
                     await asyncio.sleep(3)
                 else:
-                    print(f"Lỗi xử lý từ cấm (Mute): {e}")
+                    print(f"Lỗi xử lý từ cấm: {e}")
                 
             return 
 
-    # --- CHỨC NĂNG 2: CHẶN TAG @EVERYONE ---
+    # --- CHẶN TAG EVERYONE ---
     if message.mention_everyone and message.author.id != ID_ADMIN:
         try:
             await message.delete()
@@ -138,15 +131,13 @@ async def on_message(message):
 # PHẦN 3: KHỞI ĐỘNG HỆ THỐNG (AUTO-RESTART)
 # ======================================================
 
-# 1. Kích hoạt Web Server Keep Alive
 keep_alive()
 
-# 2. Vòng lặp bất tử để chạy Bot
 if __name__ == "__main__":
     TOKEN = os.environ.get('DISCORD_TOKEN')
 
     if not TOKEN:
-        print("❌ LỖI: Bạn chưa thêm DISCORD_TOKEN vào Environment Variables!")
+        print("❌ LỖI: Thiếu DISCORD_TOKEN.")
     else:
         while True:
             try:
