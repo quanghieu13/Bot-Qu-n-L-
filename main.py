@@ -10,8 +10,10 @@ import datetime # Cần cho chức năng Timeout (Mute)
 # PHẦN 1: TẢI CẤU HÌNH VÀ DỮ LIỆU
 # ======================================================
 
+# BẮT BUỘC: Thay thế bằng ID Discord của bạn (Admin)
 ID_ADMIN = 1065648216911122506
 
+# Hàm 1: Đọc danh sách từ cấm
 def load_tu_cam(filename="tucam.txt"):
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -20,6 +22,7 @@ def load_tu_cam(filename="tucam.txt"):
         print(f"⚠️ Lỗi: Không tìm thấy file {filename}.")
         return []
 
+# Hàm 2: Đọc danh sách người dùng được phép (Whitelist)
 def load_allowed_users(filename="id-user.txt"):
     allowed_ids = []
     try:
@@ -42,8 +45,7 @@ intents.message_content = True
 intents.members = True
 intents.presences = True
 
-bot = commands.Bot(command_prefix='!', intents=intents)
-# --- THÊM CÂY LỆNH SLASH COMMANDS ---
+bot = commands.Bot(command_prefix='!', intents=intents) 
 
 # ======================================================
 # PHẦN 2: SỰ KIỆN BOT VÀ CHỨC NĂNG KIỂM DUYỆT
@@ -51,15 +53,16 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_ready():
+    # --- ĐỒNG BỘ LỆNH SLASH COMMANDS ---
+    await bot.tree.sync() 
+    
     # --- THIẾT LẬP TRẠNG THÁI "ĐANG XEM" ---
     activity = discord.Activity(
         name="Dev Quang Hiếu Đẹp Zai", 
-        type=discord.ActivityType.watching # Thay Watching bằng Streaming, Playing, Listening tùy ý
+        type=discord.ActivityType.watching
     )
     await bot.change_presence(activity=activity)
     
-    # --- ĐỒNG BỘ LỆNH VÀ IN LOG (Giữ nguyên) ---
-    await bot.tree.sync() 
     print('----------------------------------')
     print(f'🤖 Bot đã đăng nhập: {bot.user}')
     print(f'🛡️ Admin ID: {ID_ADMIN}')
@@ -67,10 +70,9 @@ async def on_ready():
     print(f'✅ Whitelist: {len(ALLOWED_USER_IDS)}')
     print('----------------------------------')
 
-# --- LỆNH SLASH COMMAND MỚI ---
+# --- LỆNH SLASH COMMAND /ping ---
 @bot.tree.command(name="ping", description="Kiểm tra độ trễ (latency) của Bot.")
 async def ping_slash(interaction: discord.Interaction):
-    # Lệnh slash command dùng interaction.response.send_message
     await interaction.response.send_message(f'Độ trễ: {round(bot.latency * 1000)}ms', ephemeral=True)
 
 
@@ -79,7 +81,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # --- ĐỊNH NGHĨA NGOẠI LỆ ---
+    # --- ĐỊNH NGHĨA NGOẠI LỆ (Exemptions) ---
     is_exempt = (message.author.bot) or \
                 (message.author.id == ID_ADMIN) or \
                 (message.author.id in ALLOWED_USER_IDS)
@@ -87,34 +89,41 @@ async def on_message(message):
     # --- KIỂM TRA TỪ CẤM ---
     if not is_exempt:
         noi_dung = message.content.lower()
-        vi_pham = False
+        # Thay đổi: Giờ là một list để lưu TẤT CẢ các từ bị phát hiện
+        tu_cam_bi_phat_hien = [] 
         
         for tu in TU_CAM:
             if tu in noi_dung:
-                vi_pham = True
-                break
+                tu_cam_bi_phat_hien.append(tu) 
         
-        if vi_pham:
+        if tu_cam_bi_phat_hien: # Nếu list này không rỗng (có từ cấm)
             try:
+                # 1. Tự động xóa tin nhắn
                 await message.delete()
+                
+                # 2. Áp dụng Timeout (Mute) 5 phút
                 duration = datetime.timedelta(minutes=5)
                 await message.author.timeout(duration) 
                 
+                # 3. Gửi cảnh báo công khai và tự xóa sau 5s
                 msg = await message.channel.send(
                     f"🚫 {message.author.mention}, bị cấm chat 5 phút vì vi phạm từ cấm!")
-                
                 await asyncio.sleep(5)
                 await msg.delete()
                 
+                # 4. Báo cáo chi tiết cho Admin (ĐỊNH DẠNG CUỐI CÙNG)
+                detected_words_str = ", ".join(tu_cam_bi_phat_hien)
                 admin = await bot.fetch_user(ID_ADMIN)
                 await admin.send(
-                    f"⚠️ **Vi phạm**: {message.author.display_name} nhắn: `{message.content}`\n.Đã mute chó này 5 phút"
+                    f"⚠️ **Vi phạm**: {message.author.display_name} nhắn: `{message.content}` "
+                    f"(từ cấm: {detected_words_str}). Đã mute chó này 5 phút"
                 )
                 
             except discord.errors.Forbidden:
                 await message.channel.send(f"❌ Bot thiếu quyền MUTE {message.author.mention}!")
                 
             except Exception as e:
+                # Xử lý lỗi Rate Limit và lỗi chung
                 if isinstance(e, discord.errors.HTTPException) and e.status == 429:
                     print("⚠️ Bị Rate Limit. Đang nghỉ 3 giây...")
                     await asyncio.sleep(3)
