@@ -15,8 +15,8 @@ import json
 # --- BẠN CẦN ĐIỀN THÔNG TIN VÀO ĐÂY ---
 ID_ADMIN = 1065648216911122506              # ID của bạn (Admin tối cao)
 MUTE_LOG_CHANNEL_ID = 1444909829469634590   # ID kênh thông báo phạt Mute
-WELCOME_CHANNEL_ID = 123456789012345678     # <--- THAY ID KÊNH CHÀO MỪNG
-AUTO_ROLE_ID = 123456789012345678           # <--- THAY ID ROLE "THÀNH VIÊN"
+WELCOME_CHANNEL_ID = 1371768187342815293     # <--- THAY ID KÊNH CHÀO MỪNG
+AUTO_ROLE_ID = 1445736048117157971           # <--- THAY ID ROLE "THÀNH VIÊN"
 
 # Tên các file dữ liệu
 WARNING_FILE = "warnings.json"
