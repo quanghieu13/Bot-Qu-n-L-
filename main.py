@@ -84,14 +84,32 @@ async def on_tree_error(interaction: discord.Interaction, error: app_commands.Ap
 
 @bot.event
 async def on_ready():
+    # 1. Phần đồng bộ lệnh (Giữ nguyên)
     try:
         synced = await bot.tree.sync()
         print(f"✅ Đã đồng bộ {len(synced)} lệnh Slash.")
     except Exception as e:
         print(f"❌ Lỗi đồng bộ lệnh: {e}")
     
-    await bot.change_presence(activity=discord.Activity(name="Dev Quang Hiếu", type=discord.ActivityType.watching))
+    # 2. Phần in thông tin (Giữ nguyên)
     print(f'🤖 Bot online: {bot.user} | Admin: {ID_ADMIN}')
+
+    # 3. PHẦN MỚI: Vòng lặp cập nhật Ping (Thay thế cho dòng change_presence cũ)
+    # Lưu ý: Phải đặt đoạn này ở CUỐI CÙNG của hàm on_ready
+    while True:
+        # Tính độ trễ hiện tại
+        latency = round(bot.latency * 1000) 
+        
+        # Cập nhật Status
+        await bot.change_presence(
+            activity=discord.Activity(
+                name=f"Ping: {latency}ms", 
+                type=discord.ActivityType.watching
+            )
+        )
+        
+        # Đợi 10 giây rồi mới cập nhật tiếp (để tránh lag bot)
+        await asyncio.sleep(15)
 
 @bot.event
 async def on_member_join(member):
@@ -109,36 +127,32 @@ async def on_member_join(member):
 @bot.event
 async def on_member_remove(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel: await channel.send(f"😢 **{member.display_name}** đã rời server.")
+    if channel: await channel.send(f"😢 Tạm biệt **{member.display_name}** đã rời server.")
 
 # ======================================================
 # PHẦN 3: CÁC LỆNH (COMMANDS)
 # ======================================================
 
-@bot.tree.command(name="ping", description="Xem độ trễ")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(f'Pong! {round(bot.latency * 1000)}ms')
-
 # --- KICK & BAN & CLEAR ---
-@bot.tree.command(name="kick", description="Kick thành viên (Admin)")
+@bot.tree.command(name="kick", description="Kick thành viên (của Admin)")
 async def kick(interaction: discord.Interaction, member: discord.Member, reason: str = "Không"):
-    if interaction.user.id != ID_ADMIN: return await interaction.response.send_message("❌ Chỉ Admin được dùng!", ephemeral=True)
+    if interaction.user.id != ID_ADMIN: return await interaction.response.send_message("❌ M nghĩ m là ai mà dùng lệnh này hả ku!", ephemeral=True)
     try:
         await member.kick(reason=reason)
         await interaction.response.send_message(f"👞 Đã kick **{member.name}**.")
     except Exception as e: await interaction.response.send_message(f"❌ Lỗi: {e}", ephemeral=True)
 
-@bot.tree.command(name="ban", description="Ban thành viên (Admin)")
+@bot.tree.command(name="ban", description="Ban thành viên (của Admin)")
 async def ban(interaction: discord.Interaction, member: discord.Member, reason: str = "Không"):
-    if interaction.user.id != ID_ADMIN: return await interaction.response.send_message("❌ Chỉ Admin được dùng!", ephemeral=True)
+    if interaction.user.id != ID_ADMIN: return await interaction.response.send_message("❌ M nghĩ m là ai mà dùng lệnh này hả ku!", ephemeral=True)
     try:
         await member.ban(reason=reason)
         await interaction.response.send_message(f"🔨 Đã ban **{member.name}**.")
     except Exception as e: await interaction.response.send_message(f"❌ Lỗi: {e}", ephemeral=True)
 
-@bot.tree.command(name="clear", description="Xóa tin nhắn (Admin)")
+@bot.tree.command(name="clear", description="Xóa tin nhắn (của Admin)")
 async def clear(interaction: discord.Interaction, amount: int):
-    if interaction.user.id != ID_ADMIN: return await interaction.response.send_message("❌ Chỉ Admin được dùng!", ephemeral=True)
+    if interaction.user.id != ID_ADMIN: return await interaction.response.send_message("❌ T bê chym địt m nhé,thích nghịch linh tinh không!", ephemeral=True)
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=amount)
     await interaction.followup.send(f"🧹 Đã xóa {len(deleted)} tin.")
@@ -168,7 +182,7 @@ async def process_warning(member: discord.Member, reason: str, moderator_name: s
          try:
             await member.timeout(datetime.timedelta(hours=1))
             if warn_channel:
-                await warn_channel.send(f"🚫 **{member.name}** đã bị Mute 1 tiếng do đủ 3 warning!")
+                await warn_channel.send(f"🚫 Chó **{member.name}** đã được Mute 1 tiếng do đủ 3 lần cánh cáo!")
          except Exception as e:
             if warn_channel:
                 await warn_channel.send(f"⚠️ Đủ 3 warn nhưng không Mute được (Lỗi quyền hoặc Admin): {e}")
@@ -184,7 +198,7 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
 
     # Gọi hàm xử lý chung
     embed = await process_warning(member, reason, interaction.user.name, interaction.guild)
-    await interaction.response.send_message(f"✅ Đã cảnh cáo {member.mention}", ephemeral=True) # Chỉ báo nhẹ cho người dùng lệnh
+    await interaction.response.send_message(f"✅ Đã cảnh cáo chó {member.mention}", ephemeral=True) # Chỉ báo nhẹ cho người dùng lệnh
 
 @bot.tree.command(name="unwarn", description="Xóa cảnh cáo")
 @app_commands.checks.has_permissions(manage_messages=True)
@@ -193,7 +207,7 @@ async def unwarn(interaction: discord.Interaction, member: discord.Member, index
     uid = str(member.id)
 
     if uid not in warnings or not warnings[uid]:
-        return await interaction.response.send_message(f"✅ **{member.name}** không có cảnh cáo nào.", ephemeral=True)
+        return await interaction.response.send_message(f"✅ Ku em **{member.name}** không có cảnh cáo nào,TỐT.", ephemeral=True)
 
     try:
         if index is None:
@@ -215,7 +229,7 @@ async def checkwarn(interaction: discord.Interaction, member: discord.Member):
     warnings = load_warnings()
     uid = str(member.id)
     if uid not in warnings or not warnings[uid]:
-        return await interaction.response.send_message(f"✅ **{member.name}** sạch sẽ.", ephemeral=True)
+        return await interaction.response.send_message(f"✅ Ku em **{member.name}** sống sạch sẽ,TỐT.", ephemeral=True)
 
     embed = discord.Embed(title=f"Lịch sử Warn: {member.name}", color=discord.Color.red())
     for i, w in enumerate(warnings[uid], 1):
@@ -258,7 +272,7 @@ async def on_message(message):
                 await process_warning(message.author, reason_msg, "Hệ thống (Auto)", message.guild)
                 
                 # 3. Gửi tin nhắn nhắc nhở nhẹ tại kênh chat (Tự xóa sau 5s)
-                temp = await message.channel.send(f"🚫 {message.author.mention} đã bị cảnh cáo vì dùng từ cấm!")
+                temp = await message.channel.send(f"🚫 Thk chó {message.author.mention} đã bị cảnh cáo vì dùng từ cấm!")
                 await asyncio.sleep(5)
                 await temp.delete()
                 
@@ -270,7 +284,7 @@ async def on_message(message):
     if message.mention_everyone and message.author.id != ID_ADMIN:
         try:
             await message.delete()
-            temp = await message.channel.send(f"🚫 {message.author.mention} đừng tag all!")
+            temp = await message.channel.send(f"🚫 Ê {message.author.mention}, m nghĩ m là ai mà đòi tag mọi người hả ku!")
             await asyncio.sleep(5)
             await temp.delete()
         except: pass
