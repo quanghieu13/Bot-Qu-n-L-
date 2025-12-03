@@ -15,8 +15,8 @@ import json
 # --- BẠN CẦN ĐIỀN THÔNG TIN VÀO ĐÂY ---
 ID_ADMIN = 1065648216911122506              # ID của bạn (Admin tối cao)
 MUTE_LOG_CHANNEL_ID = 1444909829469634590   # ID kênh thông báo phạt Mute
-WELCOME_CHANNEL_ID = 1371768187342815293     # <--- THAY ID KÊNH CHÀO MỪNG
-AUTO_ROLE_ID = 1445736048117157971           # <--- THAY ID ROLE "THÀNH VIÊN"
+WELCOME_CHANNEL_ID = 123456789012345678     # <--- THAY ID KÊNH CHÀO MỪNG
+AUTO_ROLE_ID = 123456789012345678           # <--- THAY ID ROLE "THÀNH VIÊN"
 
 # Tên các file dữ liệu
 WARNING_FILE = "warnings.json"
@@ -139,7 +139,7 @@ async def ping_slash(interaction: discord.Interaction):
 async def kick(interaction: discord.Interaction, member: discord.Member, reason: str = "Không có lý do"):
     # Check ID Admin
     if interaction.user.id != ID_ADMIN:
-        await interaction.response.send_message("❌ Mày tuổi gì mà đòi kick người? Chỉ Admin mới được dùng!", ephemeral=True)
+        await interaction.response.send_message("❌ Mày tuổi gì đòi kick người? Chỉ Admin mới được dùng!", ephemeral=True)
         return
 
     if member.id == interaction.user.id:
@@ -215,3 +215,118 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
 # --- LỆNH CHECKWARN ---
 @bot.tree.command(name="checkwarn", description="Xem lịch sử cảnh cáo")
 async def checkwarn(interaction: discord.Interaction, member: discord.Member):
+    warnings = load_warnings()
+    user_id = str(member.id)
+    if user_id not in warnings or not warnings[user_id]:
+        await interaction.response.send_message(f"✅ **{member.name}** chưa có cảnh cáo nào.")
+        return
+
+    embed = discord.Embed(title=f"Lịch sử cảnh cáo: {member.name}", color=discord.Color.red())
+    for i, warn in enumerate(warnings[user_id], 1):
+        embed.add_field(name=f"Lần {i}", value=f"Lý do: {warn['reason']}\nBởi: {warn['moderator']}", inline=False)
+    await interaction.response.send_message(embed=embed)
+
+# --- LỆNH USERINFO ---
+@bot.tree.command(name="userinfo", description="Xem thông tin chi tiết thành viên")
+async def userinfo(interaction: discord.Interaction, member: discord.Member):
+    embed = discord.Embed(title=f"Thông tin: {member.name}", color=member.color)
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+    embed.add_field(name="ID", value=member.id, inline=True)
+    embed.add_field(name="Ngày tạo acc", value=member.created_at.strftime("%d/%m/%Y"), inline=False)
+    embed.add_field(name="Ngày vào Server", value=member.joined_at.strftime("%d/%m/%Y"), inline=False)
+    await interaction.response.send_message(embed=embed)
+
+# ======================================================
+# PHẦN 4: XỬ LÝ TIN NHẮN (GIỮ NGUYÊN CODE GỐC CỦA BẠN)
+# ======================================================
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    # --- ĐỊNH NGHĨA NGOẠI LỆ ---
+    is_exempt = (message.author.bot) or \
+                (message.author.id == ID_ADMIN) or \
+                (message.author.id in ALLOWED_USER_IDS)
+
+    # --- KIỂM TRA TỪ CẤM ---
+    if not is_exempt:
+        noi_dung = message.content.lower()
+        tu_cam_bi_phat_hien = [] 
+        
+        for tu in TU_CAM:
+            if tu in noi_dung:
+                tu_cam_bi_phat_hien.append(tu) 
+        
+        if tu_cam_bi_phat_hien:
+            try:
+                # 1. Tự động xóa tin nhắn
+                await message.delete()
+                
+                # 2. Áp dụng Timeout (Mute) 5 phút
+                duration = datetime.timedelta(minutes=5)
+                await message.author.timeout(duration) 
+                
+                # 3. Gửi LOG CÔNG KHAI
+                log_channel = bot.get_channel(MUTE_LOG_CHANNEL_ID)
+                if log_channel:
+                    await log_channel.send(
+                        f"Thằng **{message.author.display_name}** đã bị mute 5 phút."
+                    )
+                
+                # 4. Gửi cảnh báo tạm thời
+                msg = await message.channel.send(
+                    f"🚫 {message.author.mention}, bị cấm chat 5 phút vì vi phạm từ cấm!")
+                await asyncio.sleep(5)
+                await msg.delete()
+                
+                # 5. Báo cáo chi tiết cho Admin (DM)
+                detected_words_str = ", ".join(tu_cam_bi_phat_hien)
+                admin = await bot.fetch_user(ID_ADMIN)
+                await admin.send(
+                    f"⚠️ **Vi phạm**: {message.author.display_name} nhắn: `{message.content}` "
+                    f"(từ cấm: {detected_words_str}). Đã mute chó này 5 phút"
+                )
+                
+            except discord.errors.Forbidden:
+                await message.channel.send(f"❌ Bot thiếu quyền MUTE {message.author.mention}!")
+                
+            except Exception as e:
+                if isinstance(e, discord.errors.HTTPException) and e.status == 429:
+                    print("⚠️ Bị Rate Limit. Đang nghỉ 3 giây...")
+                    await asyncio.sleep(3)
+                else:
+                    print(f"Lỗi xử lý từ cấm: {e}")
+            return 
+
+    # --- CHẶN TAG EVERYONE ---
+    if message.mention_everyone and message.author.id != ID_ADMIN:
+        try:
+            await message.delete()
+            msg = await message.channel.send(f"🚫 {message.author.mention} không được tag all!")
+            await asyncio.sleep(5)
+            await msg.delete()
+        except Exception:
+            pass
+
+    await bot.process_commands(message)
+
+# ======================================================
+# PHẦN 5: CHẠY BOT
+# ======================================================
+
+keep_alive()
+
+if __name__ == "__main__":
+    TOKEN = os.environ.get('DISCORD_TOKEN')
+
+    if not TOKEN:
+        print("❌ LỖI: Thiếu DISCORD_TOKEN trong Environment Variables.")
+    else:
+        while True:
+            try:
+                bot.run(TOKEN)
+            except Exception as e:
+                print(f"\n⚠️ Bot bị crash: {e}. Đang tự động khởi động lại sau 10 giây...")
+                time.sleep(10)
