@@ -18,9 +18,9 @@ MUTE_LOG_CHANNEL_ID = 1444909829469634590
 
 # --- CẤU HÌNH MỚI (BẠN CẦN ĐIỀN VÀO ĐÂY) ---
 # ID kênh để bot gửi lời chào (Welcome)
-WELCOME_CHANNEL_ID = 123456789012345678  # <--- THAY ID KÊNH CHÀO MỪNG
+WELCOME_CHANNEL_ID = 1371768187342815293  # <--- THAY ID KÊNH CHÀO MỪNG
 # ID Role sẽ tự động cấp cho người mới (Auto-role)
-AUTO_ROLE_ID = 123456789012345678        # <--- THAY ID ROLE "THÀNH VIÊN"
+AUTO_ROLE_ID = 1445736048117157971        # <--- THAY ID ROLE "THÀNH VIÊN"
 
 # Tên file lưu cảnh cáo
 WARNING_FILE = "warnings.json"
